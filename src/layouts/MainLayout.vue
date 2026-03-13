@@ -105,6 +105,12 @@ const navItems = [
     icon: 'pending_actions',
     to: { name: 'mesa-pendencias' },
   },
+  {
+    label: 'FOTOS',
+    caption: 'Adicionar fotos e descritivo',
+    icon: 'photo_camera',
+    to: { name: 'adicionar-fotos' },
+  },
 ]
 
 const leftDrawerOpen = ref(false)

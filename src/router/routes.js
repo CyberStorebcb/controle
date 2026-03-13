@@ -23,6 +23,11 @@ const routes = [
         name: 'mesa-pendencias',
         component: () => import('pages/MesaPendenciasPage.vue'),
       },
+      {
+        path: 'adicionar-fotos',
+        name: 'adicionar-fotos',
+        component: () => import('pages/AdicionarFotosPage.vue'),
+      },
     ],
   },
 
