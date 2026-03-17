@@ -111,6 +111,12 @@ const navItems = [
     icon: 'photo_camera',
     to: { name: 'adicionar-fotos' },
   },
+  {
+    label: 'CROQUI',
+    caption: 'Desenhos técnicos',
+    icon: 'architecture',
+    to: { name: 'croqui' },
+  },
 ]
 
 const leftDrawerOpen = ref(false)

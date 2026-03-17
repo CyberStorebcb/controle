@@ -28,6 +28,11 @@ const routes = [
         name: 'adicionar-fotos',
         component: () => import('pages/AdicionarFotosPage.vue'),
       },
+      {
+        path: 'croqui',
+        name: 'croqui',
+        component: () => import('pages/CroquiPage.vue'),
+      },
     ],
   },
 
