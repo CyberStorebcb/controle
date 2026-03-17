@@ -307,38 +307,6 @@
               >
                 <div class="tower-render__label">{{ element.code }}</div>
               </div>
-
-              <div v-else-if="element.kind === 'meta'" class="meta-render">
-                <div class="meta-render__title">PROJETO DE EXPANSÃO DE REDE</div>
-                <div class="meta-render__row">
-                  <span>Ref:</span>
-                  <span class="meta-render__line">{{ element.fields.ref || '________' }}</span>
-                  <span>Cliente:</span>
-                  <span class="meta-render__line">{{ element.fields.cliente || '________' }}</span>
-                </div>
-                <div class="meta-render__row meta-render__row--single">
-                  <span>Endereço:</span>
-                  <span class="meta-render__line meta-render__line--long">{{
-                    element.fields.endereco || '____________________'
-                  }}</span>
-                </div>
-                <div class="meta-render__row">
-                  <span>Município:</span>
-                  <span class="meta-render__line">{{
-                    element.fields.municipio || '____________'
-                  }}</span>
-                  <span>Regional:</span>
-                  <span class="meta-render__line">{{ element.fields.regional || '________' }}</span>
-                </div>
-                <div class="meta-render__row">
-                  <span>Téc. Responsável:</span>
-                  <span class="meta-render__line">{{
-                    element.fields.tecnico || '____________'
-                  }}</span>
-                  <span>MED REF:</span>
-                  <span class="meta-render__line">{{ element.fields.medRef || '_____' }}</span>
-                </div>
-              </div>
             </div>
           </div>
           <div v-if="isMarqueeSelecting" class="selection-marquee" :style="marqueeStyle"></div>
@@ -360,7 +328,6 @@ const SAFE_MARGIN_Y = 160
 const SHAPE_BASELINE_Y = 660
 const CARD_ROW_TOP_Y = 700
 const TOWER_ROW_TOP_Y = 700
-const META_ROW_TOP_Y = 640
 const COLOR_PRESETS = ['#0d1f3c', '#1a5fb4', '#43a047', '#f57c00', '#d81b60', '#8e24aa', '#fdd835']
 const sheetStageRef = ref(null)
 const sheetCanvas = ref(null)
@@ -738,12 +705,6 @@ function applyInitialVerticalAlignment() {
       return {
         ...element,
         y: TOWER_ROW_TOP_Y,
-      }
-    }
-    if (element.kind === 'meta') {
-      return {
-        ...element,
-        y: META_ROW_TOP_Y,
       }
     }
     return element
