@@ -2,19 +2,21 @@
 
 // Global theme helpers for smooth light/dark transitions
 :root {
-	--app-bg-light: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-	--app-bg-dark: radial-gradient(circle at top, #1b1f2a 0%, #05060b 100%);
+  --app-bg-light: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  --app-bg-dark: radial-gradient(circle at top, #1b1f2a 0%, #05060b 100%);
 }
 
 body {
-	background: var(--app-bg-light);
-	transition: background 0.35s ease, color 0.35s ease;
+  background: var(--app-bg-light);
+  transition:
+    background 0.35s ease,
+    color 0.35s ease;
 }
 
 body.body--dark,
 body.q-dark {
-	background: var(--app-bg-dark);
-	color: #f5f6fa;
+  background: var(--app-bg-dark);
+  color: #f5f6fa;
 }
 
 body.body--dark #q-app,
@@ -23,10 +25,16 @@ body.body--dark .q-page-container,
 body.q-dark .q-page-container,
 body.body--dark .q-page,
 body.q-dark .q-page {
-	background: transparent;
+  background: transparent;
 }
 
 .q-page-container,
 .q-page {
-	transition: background-color 0.35s ease, color 0.35s ease;
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease;
+}
+
+.shape-render {
+  position: relative;
 }

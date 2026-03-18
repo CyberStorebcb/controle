@@ -294,6 +294,7 @@
                 <template v-if="isLineConnector(element) && isElementSelected(element)">
                   <div
                     class="connector-handle connector-handle--start"
+                    :style="getConnectorHandleStyle(element, 'start')"
                     @pointerdown.stop.prevent="
                       (event) => startConnectorHandleDrag(event, element, 'start')
                     "
@@ -301,6 +302,7 @@
                   ></div>
                   <div
                     class="connector-handle connector-handle--end"
+                    :style="getConnectorHandleStyle(element, 'end')"
                     @pointerdown.stop.prevent="
                       (event) => startConnectorHandleDrag(event, element, 'end')
                     "
@@ -318,6 +320,16 @@
                     spellcheck="false"
                   />
                   <span v-else class="shape-render__text">{{ element.text }}</span>
+                </template>
+                <!-- Pontos de contato visuais -->
+                <template v-if="shouldShowContactPoints(element)">
+                  <div
+                    v-for="(pt, idx) in element.contactPoints"
+                    :key="idx"
+                    class="contact-point-visual"
+                    :style="contactPointStyle(pt)"
+                    @pointerdown.stop.prevent="handleContactPointClick(element, idx)"
+                  ></div>
                 </template>
               </div>
 
@@ -382,6 +394,94 @@
 </template>
 
 <script setup>
+// Retorna o estilo absoluto do handle de conexão, se conectado a um ponto de contato
+function getConnectorHandleStyle(line, endpoint) {
+  const conn = line.connections?.[endpoint]
+  if (!conn || !conn.id) return {}
+  const target = getElementById(conn.id)
+  if (!target) return {}
+  let anchor = conn.anchor
+  if (typeof anchor === 'string' && !isNaN(anchor)) anchor = Number(anchor)
+  if (typeof anchor === 'number' && target.contactPoints && target.contactPoints[anchor]) {
+    const pt = target.contactPoints[anchor]
+    const absX = (target.x || 0) + pt.x
+    const absY = (target.y || 0) + pt.y
+    return {
+      position: 'absolute',
+      left: `${absX - 7}px`,
+      top: `${absY - 7}px`,
+      transform: 'none',
+      zIndex: 20,
+    }
+  }
+  return {}
+}
+// Retorna o índice do ponto de contato mais próximo de um ponto dado
+function getClosestContactPoint(element, point) {
+  if (!element || !element.contactPoints || !Array.isArray(element.contactPoints) || !point) {
+    return null
+  }
+  let minDist = Infinity
+  let closestIdx = null
+  element.contactPoints.forEach((pt, idx) => {
+    if (!pt) return
+    const dx = pt.x - point.x
+    const dy = pt.y - point.y
+    const dist = dx * dx + dy * dy
+    if (dist < minDist) {
+      minDist = dist
+      closestIdx = idx
+    }
+  })
+  return closestIdx
+}
+// Exibe pontos de contato ao arrastar cabo próximo
+function shouldShowContactPoints(element) {
+  return connectorBinding.dragMode && isNearElement(connectorPreview.current, element)
+}
+
+function isNearElement(point, element) {
+  const margin = 60
+  return (
+    point.x > element.x - margin &&
+    point.x < element.x + (element.width || 40) + margin &&
+    point.y > element.y - margin &&
+    point.y < element.y + (element.height || 40) + margin
+  )
+}
+
+function contactPointStyle(pt) {
+  return {
+    position: 'absolute',
+    left: `${pt.x - 7}px`,
+    top: `${pt.y - 7}px`,
+    width: '14px',
+    height: '14px',
+    background: '#fff',
+    border: '2px solid #1976d2',
+    borderRadius: '50%',
+    zIndex: 10,
+    cursor: 'pointer',
+    boxShadow: '0 0 4px #1976d2',
+    transition: 'background 0.2s, border 0.2s',
+  }
+}
+
+// Conecta a linha ao ponto de contato clicado
+function handleContactPointClick(targetElement, contactIdx) {
+  const { lineId, endpoint } = connectorBinding
+  if (!lineId || !endpoint) return
+  if (!targetElement || targetElement.id === lineId || isLineConnector(targetElement)) return
+  const line = getElementById(lineId)
+  if (!line || !isLineConnector(line)) return
+  // Garante que o anchor seja sempre um número
+  const attached = attachConnectorToElement(line, endpoint, targetElement.id, Number(contactIdx))
+  if (attached) {
+    selectedElementIds.value = new Set([line.id])
+    saveState()
+  }
+  cancelConnectionBinding()
+}
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import html2canvas from 'html2canvas'
 
@@ -451,10 +551,8 @@ const elements = ref([
     text: 'XX-XXXXXXXXXX.X.XXXX\nNOTA: XXXXXXXX',
     x: 70,
     y: 70,
-    width: 360,
-    height: 70,
-    fontFamily: 'Courier New, monospace',
-    fontSize: 20,
+    width: 260,
+    height: 60,
     color: '#0d1f3c',
   },
   {
@@ -466,72 +564,112 @@ const elements = ref([
     width: 28,
     height: 48,
     color: defaultShapeColor,
+    contactPoints: [
+      { x: 0, y: 24 }, // esquerda
+      { x: 28, y: 24 }, // direita
+      { x: 14, y: 0 }, // topo
+      { x: 14, y: 48 }, // base
+    ],
   },
   {
     id: 'shape-02',
     kind: 'shape',
     variant: 'rect-solid',
-    x: 110,
+    x: 120,
     y: 730,
     width: 28,
     height: 48,
     color: defaultShapeColor,
+    contactPoints: [
+      { x: 0, y: 24 }, // esquerda
+      { x: 28, y: 24 }, // direita
+      { x: 14, y: 0 }, // topo
+      { x: 14, y: 48 }, // base
+    ],
   },
   {
     id: 'shape-03',
     kind: 'shape',
     variant: 'rect-split-left',
-    x: 148,
+    x: 170,
     y: 730,
     width: 28,
     height: 48,
     color: defaultShapeColor,
+    contactPoints: [
+      { x: 0, y: 24 }, // esquerda
+      { x: 28, y: 24 }, // direita
+      { x: 14, y: 0 }, // topo
+      { x: 14, y: 48 }, // base
+    ],
   },
   {
     id: 'shape-04',
     kind: 'shape',
     variant: 'rect-split-right',
-    x: 186,
+    x: 220,
     y: 730,
     width: 28,
     height: 48,
     color: defaultShapeColor,
+    contactPoints: [
+      { x: 0, y: 24 }, // esquerda
+      { x: 28, y: 24 }, // direita
+      { x: 14, y: 0 }, // topo
+      { x: 14, y: 48 }, // base
+    ],
   },
   {
     id: 'shape-05',
     kind: 'shape',
     variant: 'circle-outline',
-    x: 226,
+    x: 270,
     y: 736,
-    width: 26,
-    height: 26,
-    color: defaultShapeColor,
+    width: 40,
+    height: 40,
+    contactPoints: [
+      { x: 0, y: 20 }, // esquerda
+      { x: 40, y: 20 }, // direita
+      { x: 20, y: 0 }, // topo
+      { x: 20, y: 40 }, // base
+    ],
   },
   {
     id: 'shape-06',
     kind: 'shape',
     variant: 'circle-solid',
-    x: 260,
+    x: 320,
     y: 736,
-    width: 26,
-    height: 26,
-    color: defaultShapeColor,
+    width: 40,
+    height: 40,
+    contactPoints: [
+      { x: 0, y: 20 }, // esquerda
+      { x: 40, y: 20 }, // direita
+      { x: 20, y: 0 }, // topo
+      { x: 20, y: 40 }, // base
+    ],
   },
   {
     id: 'shape-07',
     kind: 'shape',
     variant: 'circle-half',
-    x: 294,
+    x: 370,
     y: 736,
-    width: 26,
-    height: 26,
+    width: 40,
+    height: 40,
     color: defaultShapeColor,
+    contactPoints: [
+      { x: 0, y: 20 }, // esquerda
+      { x: 40, y: 20 }, // direita
+      { x: 20, y: 0 }, // topo
+      { x: 20, y: 40 }, // base
+    ],
   },
   {
     id: 'shape-08',
     kind: 'shape',
     variant: 'triangle-up',
-    x: 332,
+    x: 420,
     y: 726,
     width: 26,
     height: 26,
@@ -541,7 +679,7 @@ const elements = ref([
     id: 'shape-09',
     kind: 'shape',
     variant: 'triangle-down',
-    x: 368,
+    x: 470,
     y: 734,
     width: 26,
     height: 26,
@@ -551,7 +689,7 @@ const elements = ref([
     id: 'shape-10',
     kind: 'shape',
     variant: 'diamond',
-    x: 404,
+    x: 520,
     y: 726,
     width: 26,
     height: 26,
@@ -962,8 +1100,28 @@ function ensureLineConnectionsContainer(element) {
 }
 
 function getElementAnchorPoint(element, anchor = 'center') {
-  if (!element) {
-    return null
+  // Se for uma linha, sempre retorna o centro da extremidade
+  if (element && element.variant === 'line-solid') {
+    const width = element.width || 0
+    const height = element.height || 0
+    const x = element.x || 0
+    const y = element.y || 0
+    const centerY = y + height / 2
+    if (anchor === 'left' || anchor === 0 || anchor === 'start') {
+      return { x, y: centerY }
+    }
+    if (anchor === 'right' || anchor === 1 || anchor === 'end') {
+      return { x: x + width, y: centerY }
+    }
+    // Para outros, retorna centro da linha
+    return { x: x + width / 2, y: centerY }
+  }
+  if (typeof anchor === 'number' && element.contactPoints && element.contactPoints[anchor]) {
+    // Ajusta ponto de contato relativo à posição do elemento
+    return {
+      x: (element.x || 0) + element.contactPoints[anchor].x,
+      y: (element.y || 0) + element.contactPoints[anchor].y,
+    }
   }
   const width = element.width || 0
   const height = element.height || 0
@@ -1005,8 +1163,22 @@ function getLineAnchorPointForEndpoint(line, endpoint) {
   if (targetId) {
     const target = getElementById(targetId)
     if (target) {
-      const anchor = line.connections?.[endpoint]?.anchor || 'bottom'
+      let anchor = line.connections?.[endpoint]?.anchor
+      // Se anchor for string numérica, converte para número
+      if (typeof anchor === 'string' && !isNaN(anchor)) {
+        anchor = Number(anchor)
+      }
+      if (anchor === undefined || anchor === null) anchor = 'bottom'
       return getElementAnchorPoint(target, anchor)
+    }
+  }
+  const otherEndpoint = endpoint === 'start' ? 'end' : 'start'
+  const otherTargetId = line.connections?.[otherEndpoint]?.id
+  if (otherTargetId) {
+    const otherElement = getElementById(otherTargetId)
+    if (otherElement) {
+      const anchor = line.connections?.[otherEndpoint]?.anchor === 'center' ? 'center' : 'bottom'
+      return getElementAnchorPoint(otherElement, anchor)
     }
   }
   return getLineHandlePoint(line, endpoint)
@@ -1189,7 +1361,14 @@ function finishConnectorHandleDrag(event) {
   const dropTarget = getElementFromClientPoint(event.clientX, event.clientY)
   const line = getElementById(connectorBinding.lineId)
   if (dropTarget && line && dropTarget.id !== line.id && !isLineConnector(dropTarget)) {
-    const anchor = getPreferredConnectorAnchor(dropTarget, line)
+    let anchor = 'center'
+    if (dropTarget.contactPoints && event && event.clientX && event.clientY) {
+      const mousePoint = getSheetCoordinatesFromClient(event.clientX, event.clientY)
+      const idx = getClosestContactPoint(dropTarget, mousePoint)
+      if (typeof idx === 'number') anchor = idx
+    } else {
+      anchor = getPreferredConnectorAnchor(dropTarget, line)
+    }
     const attached = attachConnectorToElement(
       line,
       connectorBinding.endpoint,
@@ -1277,7 +1456,7 @@ function handleElementClick(element, event) {
   selectElement(element, event)
 }
 
-function tryAttachConnectorTarget(targetElement) {
+function tryAttachConnectorTarget(targetElement, event) {
   const { lineId, endpoint } = connectorBinding
   if (!lineId || !endpoint) {
     cancelConnectionBinding()
@@ -1291,7 +1470,14 @@ function tryAttachConnectorTarget(targetElement) {
     cancelConnectionBinding()
     return false
   }
-  const anchor = getPreferredConnectorAnchor(targetElement, line)
+  let anchor = 'center'
+  if (targetElement.contactPoints && event && event.clientX && event.clientY) {
+    const mousePoint = getSheetCoordinatesFromClient(event.clientX, event.clientY)
+    const idx = getClosestContactPoint(targetElement, mousePoint)
+    if (typeof idx === 'number') anchor = idx
+  } else {
+    anchor = getPreferredConnectorAnchor(targetElement, line)
+  }
   const attached = attachConnectorToElement(line, endpoint, targetElement.id, anchor)
   if (attached) {
     selectedElementIds.value = new Set([line.id])
