@@ -23,50 +23,46 @@
       </button>
     </div>
     <div class="sheet-stage" ref="sheetStageRef">
-      <transition name="selection-toolbar-fade">
-        <div v-if="selectedElementCount > 0" class="selection-toolbar">
-          <div class="selection-toolbar__title">
-            {{ selectedElementCount }} selecionado{{ selectedElementCount > 1 ? 's' : '' }}
-          </div>
-          <div class="selection-toolbar__actions">
-            <button type="button" @click="alignSelection('left')" title="Alinhar à esquerda">
-              ⟸
-            </button>
-            <button type="button" @click="alignSelection('center')" title="Centralizar">⇔</button>
-            <button type="button" @click="alignSelection('right')" title="Alinhar à direita">
-              ⟹
-            </button>
-            <span class="selection-toolbar__divider"></span>
-            <button type="button" @click="alignSelection('top')" title="Alinhar ao topo">⟰</button>
-            <button type="button" @click="alignSelection('middle')" title="Centralizar vertical">
-              ⇕
-            </button>
-            <button type="button" @click="alignSelection('bottom')" title="Alinhar à base">
-              ⟱
-            </button>
-            <span class="selection-toolbar__divider"></span>
-            <button
-              type="button"
-              @click="copySelectedElements"
-              title="Copiar"
-              :disabled="selectedElementCount === 0"
-            >
-              ⧉
-            </button>
-            <button
-              type="button"
-              @click="pasteClipboardElements"
-              title="Colar"
-              :disabled="!clipboardHasContent"
-            >
-              ⧥
-            </button>
-            <button type="button" @click="duplicateSelectedElements" title="Duplicar">✚</button>
-            <button type="button" @click="selectAllElements" title="Selecionar tudo">∑</button>
-            <button type="button" @click="clearSelection" title="Limpar seleção">✕</button>
-          </div>
+      <div class="selection-toolbar selection-toolbar--fixed">
+        <div class="selection-toolbar__title">
+          {{ selectedElementCount }} selecionado{{ selectedElementCount > 1 ? 's' : '' }}
         </div>
-      </transition>
+        <div class="selection-toolbar__actions">
+          <button type="button" @click="alignSelection('left')" title="Alinhar à esquerda">
+            ⟸
+          </button>
+          <button type="button" @click="alignSelection('center')" title="Centralizar">⇔</button>
+          <button type="button" @click="alignSelection('right')" title="Alinhar à direita">
+            ⟹
+          </button>
+          <span class="selection-toolbar__divider"></span>
+          <button type="button" @click="alignSelection('top')" title="Alinhar ao topo">⟰</button>
+          <button type="button" @click="alignSelection('middle')" title="Centralizar vertical">
+            ⇕
+          </button>
+          <button type="button" @click="alignSelection('bottom')" title="Alinhar à base">⟱</button>
+          <span class="selection-toolbar__divider"></span>
+          <button
+            type="button"
+            @click="copySelectedElements"
+            title="Copiar"
+            :disabled="selectedElementCount === 0"
+          >
+            ⧉
+          </button>
+          <button
+            type="button"
+            @click="pasteClipboardElements"
+            title="Colar"
+            :disabled="!clipboardHasContent"
+          >
+            ⧥
+          </button>
+          <button type="button" @click="duplicateSelectedElements" title="Duplicar">✚</button>
+          <button type="button" @click="selectAllElements" title="Selecionar tudo">∑</button>
+          <button type="button" @click="clearSelection" title="Limpar seleção">✕</button>
+        </div>
+      </div>
       <div
         v-if="contextMenu.visible"
         class="context-menu"
@@ -169,6 +165,46 @@
             </button>
           </div>
         </div>
+        <div
+          v-if="showConnectorContextOptions"
+          class="context-menu__section context-menu__section--connector"
+        >
+          <div class="context-menu__label">Conexões da linha</div>
+          <div class="context-menu__connector-row">
+            <button
+              type="button"
+              class="context-menu__button"
+              @click="beginConnectionBinding('start')"
+            >
+              Definir início
+            </button>
+            <button
+              type="button"
+              class="context-menu__button"
+              @click="clearConnectorEndpoint('start')"
+              :disabled="!connectorHasEndpoint('start')"
+            >
+              Limpar início
+            </button>
+          </div>
+          <div class="context-menu__connector-row">
+            <button
+              type="button"
+              class="context-menu__button"
+              @click="beginConnectionBinding('end')"
+            >
+              Definir fim
+            </button>
+            <button
+              type="button"
+              class="context-menu__button"
+              @click="clearConnectorEndpoint('end')"
+              :disabled="!connectorHasEndpoint('end')"
+            >
+              Limpar fim
+            </button>
+          </div>
+        </div>
         <div class="context-menu__section">
           <button
             type="button"
@@ -225,6 +261,8 @@
           :style="sheetStyle"
           ref="sheetSurfaceRef"
           @pointerdown="handleSurfacePointerDown"
+          @pointermove="handleSurfacePointerMove"
+          @pointerleave="handleSurfacePointerLeave"
         >
           <canvas
             ref="sheetCanvas"
@@ -241,8 +279,9 @@
               class="sheet-element"
               :class="elementClasses(element)"
               :style="getElementStyle(element)"
+              :data-element-id="element.id"
               @pointerdown="(event) => startElementDrag(event, element)"
-              @click.stop="(event) => selectElement(element, event)"
+              @click.stop="(event) => handleElementClick(element, event)"
               @contextmenu.prevent="(event) => openContextMenu(event, element)"
               @dblclick.stop.prevent="startInlineEditing(element)"
             >
@@ -252,6 +291,22 @@
                 :class="'shape-render--' + element.variant"
                 :style="shapeStyle(element)"
               >
+                <template v-if="isLineConnector(element) && isElementSelected(element)">
+                  <div
+                    class="connector-handle connector-handle--start"
+                    @pointerdown.stop.prevent="
+                      (event) => startConnectorHandleDrag(event, element, 'start')
+                    "
+                    title="Arraste para definir o início"
+                  ></div>
+                  <div
+                    class="connector-handle connector-handle--end"
+                    @pointerdown.stop.prevent="
+                      (event) => startConnectorHandleDrag(event, element, 'end')
+                    "
+                    title="Arraste para definir o fim"
+                  ></div>
+                </template>
                 <template v-if="element.variant === 'badge'">
                   <input
                     v-if="isInlineEditing(element)"
@@ -309,6 +364,16 @@
               </div>
             </div>
           </div>
+          <div
+            v-if="connectorPreview.active"
+            class="connector-preview-line"
+            :style="connectorPreviewStyle"
+          ></div>
+          <div
+            v-if="eraserPreview.visible"
+            class="eraser-preview"
+            :style="eraserPreviewStyle"
+          ></div>
           <div v-if="isMarqueeSelecting" class="selection-marquee" :style="marqueeStyle"></div>
         </div>
       </div>
@@ -329,6 +394,7 @@ const SHAPE_BASELINE_Y = 660
 const CARD_ROW_TOP_Y = 700
 const TOWER_ROW_TOP_Y = 700
 const COLOR_PRESETS = ['#0d1f3c', '#1a5fb4', '#43a047', '#f57c00', '#d81b60', '#8e24aa', '#fdd835']
+const MIN_LINE_LENGTH = 6
 const sheetStageRef = ref(null)
 const sheetCanvas = ref(null)
 const sheetSurfaceRef = ref(null)
@@ -337,13 +403,15 @@ const isDrawing = ref(false)
 const brushColor = ref('#0d1f3c')
 const brushSize = ref(3)
 const history = ref([])
+const historyIndex = ref(-1)
 const maxHistory = 20
-const activeDrawTool = ref('pen')
+const canvasSnapshot = ref(null)
+const activeDrawTool = ref('none')
 
 const selectedElementIds = ref(new Set())
 const draggingElementId = ref(null)
 const dragStartPoint = ref({ x: 0, y: 0 })
-const dragSelectionStart = ref([])
+const dragSelectionState = ref({ snapshots: [], shiftLock: false, axis: null })
 const clipboardElements = ref([])
 const multiSelectMode = ref(false)
 const isMarqueeSelecting = ref(false)
@@ -361,6 +429,20 @@ const inlineEditorRef = ref(null)
 const inlineEditor = reactive({ id: null, text: '', original: '' })
 const defaultShapeColor = '#0d1f3c'
 const sheetSize = ref({ width: SHEET_WIDTH, height: SHEET_HEIGHT })
+const connectorBinding = reactive({
+  active: false,
+  endpoint: null,
+  lineId: null,
+  dragMode: false,
+  modified: false,
+})
+const eraserPreview = reactive({ visible: false, x: 0, y: 0 })
+const connectorPreview = reactive({
+  active: false,
+  start: { x: 0, y: 0 },
+  current: { x: 0, y: 0 },
+  color: defaultShapeColor,
+})
 
 const elements = ref([
   {
@@ -645,6 +727,12 @@ const elements = ref([
 let elementIdCounter = elements.value.length + 1
 let marqueeBaseSelection = new Set()
 applyInitialVerticalAlignment()
+let dragOperationHadEffect = false
+const cloneDragState = {
+  intent: false,
+  performed: false,
+  sourceElementId: null,
+}
 
 const sheetStyle = computed(() => ({
   width: `${sheetSize.value.width}px`,
@@ -685,6 +773,56 @@ const marqueeStyle = computed(() => {
     height: `${(rect.height / SHEET_HEIGHT) * 100}%`,
   }
 })
+
+const eraserDiameter = computed(() => brushSize.value * 1.6)
+const eraserPreviewStyle = computed(() => {
+  if (!eraserPreview.visible) {
+    return {}
+  }
+  const diameter = eraserDiameter.value
+  const half = diameter / 2
+  const clampedX = clamp(eraserPreview.x - half, 0, SHEET_WIDTH - diameter)
+  const clampedY = clamp(eraserPreview.y - half, 0, SHEET_HEIGHT - diameter)
+  return {
+    width: `${(diameter / SHEET_WIDTH) * 100}%`,
+    height: `${(diameter / SHEET_HEIGHT) * 100}%`,
+    left: `${(clampedX / SHEET_WIDTH) * 100}%`,
+    top: `${(clampedY / SHEET_HEIGHT) * 100}%`,
+  }
+})
+
+const connectorPreviewStyle = computed(() => {
+  if (!connectorPreview.active) {
+    return {}
+  }
+  const start = connectorPreview.start
+  const current = connectorPreview.current
+  const dx = current.x - start.x
+  const dy = current.y - start.y
+  const length = Math.max(1, Math.sqrt(dx * dx + dy * dy))
+  const angle = Math.atan2(dy, dx)
+  const thickness = 6
+  const top = clamp(start.y - thickness / 2, 0, SHEET_HEIGHT - thickness)
+  return {
+    left: `${(start.x / SHEET_WIDTH) * 100}%`,
+    top: `${(top / SHEET_HEIGHT) * 100}%`,
+    width: `${(length / SHEET_WIDTH) * 100}%`,
+    height: `${(thickness / SHEET_HEIGHT) * 100}%`,
+    transform: `rotate(${angle}rad)`,
+    transformOrigin: '0 50%',
+    '--connector-preview-color': connectorPreview.color || defaultShapeColor,
+  }
+})
+
+const selectedConnectorElement = computed(() => {
+  if (selectedElementIds.value.size !== 1) {
+    return null
+  }
+  const [element] = getSelectedElements()
+  return isLineConnector(element) ? element : null
+})
+
+const showConnectorContextOptions = computed(() => Boolean(selectedConnectorElement.value))
 
 function applyInitialVerticalAlignment() {
   elements.value = elements.value.map((element) => {
@@ -754,9 +892,6 @@ function selectElement(element, event) {
       } else {
         set.add(element.id)
       }
-      if (set.size === 0) {
-        set.add(element.id)
-      }
     })
     return
   }
@@ -766,6 +901,7 @@ function selectElement(element, event) {
 function clearSelection() {
   selectedElementIds.value = new Set()
   cancelMarqueeSelection()
+  cancelConnectionBinding()
   closeContextMenu()
 }
 
@@ -776,6 +912,466 @@ function selectAllElements() {
 
 function getSelectedElements() {
   return elements.value.filter((element) => selectedElementIds.value.has(element.id))
+}
+
+function getElementById(id) {
+  if (!id) {
+    return null
+  }
+  return elements.value.find((element) => element.id === id) || null
+}
+
+function isLineConnector(element) {
+  return Boolean(
+    element &&
+    element.kind === 'shape' &&
+    (element.variant === 'line-solid' || element.variant === 'line-dashed'),
+  )
+}
+
+function hasCompleteLineConnection(element) {
+  if (!isLineConnector(element)) {
+    return false
+  }
+  const connections = element.connections || {}
+  return Boolean(connections.start?.id && connections.end?.id)
+}
+
+function hasAnyLineConnection(element) {
+  if (!isLineConnector(element)) {
+    return false
+  }
+  const connections = element.connections || {}
+  return Boolean(connections.start?.id || connections.end?.id)
+}
+
+function ensureLineConnectionsContainer(element) {
+  if (!element) {
+    return
+  }
+  if (!element.connections) {
+    element.connections = { start: null, end: null }
+    return
+  }
+  if (!Object.prototype.hasOwnProperty.call(element.connections, 'start')) {
+    element.connections.start = null
+  }
+  if (!Object.prototype.hasOwnProperty.call(element.connections, 'end')) {
+    element.connections.end = null
+  }
+}
+
+function getElementAnchorPoint(element, anchor = 'center') {
+  if (!element) {
+    return null
+  }
+  const width = element.width || 0
+  const height = element.height || 0
+  const baseX = element.x || 0
+  const baseY = element.y || 0
+  const centerX = baseX + width / 2
+  const centerY = baseY + height / 2
+  switch (anchor) {
+    case 'left':
+      return { x: baseX, y: centerY }
+    case 'right':
+      return { x: baseX + width, y: centerY }
+    case 'top':
+      return { x: centerX, y: baseY }
+    case 'bottom':
+      return { x: centerX, y: baseY + height }
+    default:
+      return { x: centerX, y: centerY }
+  }
+}
+
+function getLineConnectionPoints(element) {
+  if (!isLineConnector(element) || !element.connections) {
+    return null
+  }
+  const startPoint = getLineAnchorPointForEndpoint(element, 'start')
+  const endPoint = getLineAnchorPointForEndpoint(element, 'end')
+  if (!startPoint || !endPoint) {
+    return null
+  }
+  return { start: startPoint, end: endPoint }
+}
+
+function getLineAnchorPointForEndpoint(line, endpoint) {
+  if (!line || !isLineConnector(line)) {
+    return null
+  }
+  const targetId = line.connections?.[endpoint]?.id
+  if (targetId) {
+    const target = getElementById(targetId)
+    if (target) {
+      const anchor = line.connections?.[endpoint]?.anchor || 'bottom'
+      return getElementAnchorPoint(target, anchor)
+    }
+  }
+  return getLineHandlePoint(line, endpoint)
+}
+
+function getLineHandlePoint(line, endpoint) {
+  if (!line) {
+    return null
+  }
+  const width = line.width || 0
+  const height = line.height || 0
+  const x = line.x || 0
+  const y = line.y || 0
+  const centerY = y + height / 2
+  if (endpoint === 'start') {
+    return { x, y: centerY }
+  }
+  return { x: x + width, y: centerY }
+}
+
+function getPreviewPointsForLine(line) {
+  if (!line) {
+    return null
+  }
+  if (!connectorPreview.active || !connectorBinding.dragMode) {
+    return null
+  }
+  if (connectorBinding.lineId !== line.id) {
+    return null
+  }
+  return {
+    start: { ...connectorPreview.start },
+    end: { ...connectorPreview.current },
+  }
+}
+
+function buildLineStyleFromPoints(start, end, baseHeight) {
+  if (!start || !end) {
+    return null
+  }
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const length = Math.max(1, Math.sqrt(dx * dx + dy * dy))
+  const angle = Math.atan2(dy, dx)
+  const resolvedHeight = baseHeight || 6
+  const top = clamp(start.y - resolvedHeight / 2, 0, SHEET_HEIGHT - resolvedHeight)
+  return {
+    left: `${(start.x / SHEET_WIDTH) * 100}%`,
+    top: `${(top / SHEET_HEIGHT) * 100}%`,
+    width: `${(length / SHEET_WIDTH) * 100}%`,
+    height: `${(resolvedHeight / SHEET_HEIGHT) * 100}%`,
+    transform: `rotate(${angle}rad)`,
+    transformOrigin: '0 50%',
+  }
+}
+
+function shouldStretchLineGeometry(line, endpoint) {
+  if (!line || !endpoint) {
+    return true
+  }
+  if (!line.connections) {
+    return true
+  }
+  return !line.connections[endpoint]?.id
+}
+
+function applyLineHandleStretch(line, endpoint, point) {
+  if (!line || !point) {
+    return false
+  }
+  const startX = line.x || 0
+  const width = line.width || 0
+  const endX = startX + width
+  const clampedPointerX = clamp(point.x, 0, SHEET_WIDTH)
+  let nextStartX = startX
+  let nextWidth = width
+  if (endpoint === 'start') {
+    const maxStart = endX - MIN_LINE_LENGTH
+    const candidate = Math.min(clampedPointerX, maxStart)
+    nextStartX = clamp(candidate, 0, SHEET_WIDTH)
+    nextWidth = Math.max(MIN_LINE_LENGTH, endX - nextStartX)
+  } else {
+    const minEnd = startX + MIN_LINE_LENGTH
+    const candidate = Math.max(clampedPointerX, minEnd)
+    const clampedEnd = clamp(candidate, 0, SHEET_WIDTH)
+    nextWidth = Math.max(MIN_LINE_LENGTH, clampedEnd - startX)
+  }
+  const changed = Math.abs(nextStartX - startX) > 0.5 || Math.abs(nextWidth - width) > 0.5
+  if (changed) {
+    line.x = nextStartX
+    line.width = nextWidth
+  }
+  return changed
+}
+
+function beginConnectionBinding(endpoint) {
+  const connector = selectedConnectorElement.value
+  if (!connector || (endpoint !== 'start' && endpoint !== 'end')) {
+    return
+  }
+  connectorBinding.active = true
+  connectorBinding.endpoint = endpoint
+  connectorBinding.lineId = connector.id
+  connectorBinding.dragMode = false
+  connectorBinding.modified = false
+  closeContextMenu()
+}
+
+function cancelConnectionBinding() {
+  window.removeEventListener('pointermove', handleConnectorHandleMove)
+  window.removeEventListener('pointerup', finishConnectorHandleDrag)
+  hideConnectorPreview()
+  connectorBinding.active = false
+  connectorBinding.endpoint = null
+  connectorBinding.lineId = null
+  connectorBinding.dragMode = false
+  connectorBinding.modified = false
+}
+
+function connectorHasEndpoint(endpoint) {
+  const connector = selectedConnectorElement.value
+  if (!connector || !connector.connections) {
+    return false
+  }
+  return Boolean(connector.connections[endpoint]?.id)
+}
+
+function clearConnectorEndpoint(endpoint) {
+  const connector = selectedConnectorElement.value
+  if (!connector || !connector.connections) {
+    cancelConnectionBinding()
+    return
+  }
+  let cleared = false
+  if (connector.connections[endpoint]) {
+    connector.connections[endpoint] = null
+    cleared = true
+  }
+  if (!connector.connections.start?.id && !connector.connections.end?.id) {
+    connector.connections = null
+  }
+  cancelConnectionBinding()
+  closeContextMenu()
+  if (cleared) {
+    saveState()
+  }
+}
+
+function startConnectorHandleDrag(event, line, endpoint) {
+  if (!line || !isLineConnector(line) || (endpoint !== 'start' && endpoint !== 'end')) {
+    return
+  }
+  if (!isElementSelected(line)) {
+    selectElement(line, event)
+  }
+  cancelMarqueeSelection()
+  closeContextMenu()
+  initializeConnectorPreview(line, endpoint)
+  connectorBinding.active = true
+  connectorBinding.endpoint = endpoint
+  connectorBinding.lineId = line.id
+  connectorBinding.dragMode = true
+  connectorBinding.modified = false
+  const initialPoint = getSheetCoordinatesFromClient(event.clientX, event.clientY)
+  if (initialPoint) {
+    updateConnectorPreview(initialPoint, line)
+  }
+  window.addEventListener('pointermove', handleConnectorHandleMove)
+  window.addEventListener('pointerup', finishConnectorHandleDrag)
+}
+
+function finishConnectorHandleDrag(event) {
+  window.removeEventListener('pointermove', handleConnectorHandleMove)
+  window.removeEventListener('pointerup', finishConnectorHandleDrag)
+  if (!connectorBinding.dragMode || !connectorBinding.lineId) {
+    hideConnectorPreview()
+    cancelConnectionBinding()
+    return
+  }
+  const dropTarget = getElementFromClientPoint(event.clientX, event.clientY)
+  const line = getElementById(connectorBinding.lineId)
+  if (dropTarget && line && dropTarget.id !== line.id && !isLineConnector(dropTarget)) {
+    const anchor = getPreferredConnectorAnchor(dropTarget, line)
+    const attached = attachConnectorToElement(
+      line,
+      connectorBinding.endpoint,
+      dropTarget.id,
+      anchor,
+    )
+    if (attached) {
+      selectedElementIds.value = new Set([line.id])
+    }
+  }
+  if (connectorBinding.modified) {
+    saveState()
+  }
+  hideConnectorPreview()
+  cancelConnectionBinding()
+}
+
+function handleConnectorHandleMove(event) {
+  if (!connectorBinding.dragMode) {
+    return
+  }
+  const point = getSheetCoordinatesFromClient(event.clientX, event.clientY)
+  if (!point) {
+    return
+  }
+  const line = getElementById(connectorBinding.lineId)
+  updateConnectorPreview(point, line)
+}
+
+function initializeConnectorPreview(line, draggedEndpoint) {
+  const fixedEndpoint = draggedEndpoint === 'start' ? 'end' : 'start'
+  const basePoint = getLineAnchorPointForEndpoint(line, fixedEndpoint) ||
+    getLineHandlePoint(line, fixedEndpoint) ||
+    getLineHandlePoint(line, draggedEndpoint) || { x: 0, y: 0 }
+  const clampedBase = {
+    x: clamp(basePoint.x, 0, SHEET_WIDTH),
+    y: clamp(basePoint.y, 0, SHEET_HEIGHT),
+  }
+  connectorPreview.active = true
+  connectorPreview.start = clampedBase
+  connectorPreview.current = clampedBase
+  connectorPreview.color = line.color || defaultShapeColor
+}
+
+function updateConnectorPreview(point, line = null) {
+  if (!connectorPreview.active) {
+    return
+  }
+  connectorPreview.current = {
+    x: clamp(point.x, 0, SHEET_WIDTH),
+    y: clamp(point.y, 0, SHEET_HEIGHT),
+  }
+  if (
+    line &&
+    connectorBinding.dragMode &&
+    shouldStretchLineGeometry(line, connectorBinding.endpoint)
+  ) {
+    const stretched = applyLineHandleStretch(
+      line,
+      connectorBinding.endpoint,
+      connectorPreview.current,
+    )
+    if (stretched) {
+      connectorBinding.modified = true
+    }
+  }
+}
+
+function hideConnectorPreview() {
+  connectorPreview.active = false
+  connectorPreview.start = { x: 0, y: 0 }
+  connectorPreview.current = { x: 0, y: 0 }
+}
+
+function handleElementClick(element, event) {
+  if (!element) {
+    return
+  }
+  if (connectorBinding.active) {
+    const attached = tryAttachConnectorTarget(element)
+    if (attached) {
+      return
+    }
+  }
+  selectElement(element, event)
+}
+
+function tryAttachConnectorTarget(targetElement) {
+  const { lineId, endpoint } = connectorBinding
+  if (!lineId || !endpoint) {
+    cancelConnectionBinding()
+    return false
+  }
+  if (!targetElement || targetElement.id === lineId || isLineConnector(targetElement)) {
+    return false
+  }
+  const line = getElementById(lineId)
+  if (!line || !isLineConnector(line)) {
+    cancelConnectionBinding()
+    return false
+  }
+  const anchor = getPreferredConnectorAnchor(targetElement, line)
+  const attached = attachConnectorToElement(line, endpoint, targetElement.id, anchor)
+  if (attached) {
+    selectedElementIds.value = new Set([line.id])
+    saveState()
+  }
+  cancelConnectionBinding()
+  return Boolean(attached)
+}
+
+function attachConnectorToElement(line, endpoint, targetId, anchor = 'center') {
+  if (!line || (endpoint !== 'start' && endpoint !== 'end')) {
+    return false
+  }
+  const target = getElementById(targetId)
+  if (!target) {
+    return false
+  }
+  ensureLineConnectionsContainer(line)
+  const current = line.connections[endpoint]
+  const nextConnection = { id: targetId, anchor }
+  if (current && current.id === nextConnection.id && current.anchor === nextConnection.anchor) {
+    return false
+  }
+  line.connections[endpoint] = nextConnection
+  connectorBinding.modified = true
+  return true
+}
+
+function getPreferredConnectorAnchor(targetElement, lineElement = null) {
+  if (!targetElement) {
+    return 'center'
+  }
+  if (lineElement && isLineConnector(lineElement)) {
+    if (lineElement.variant === 'line-solid') {
+      return 'bottom'
+    }
+    if (lineElement.variant === 'line-dashed') {
+      return 'center'
+    }
+  }
+  return 'center'
+}
+
+function getElementFromClientPoint(clientX, clientY) {
+  if (typeof clientX !== 'number' || typeof clientY !== 'number') {
+    return null
+  }
+  if (typeof document === 'undefined') {
+    return null
+  }
+  const hitNode = document.elementFromPoint(clientX, clientY)
+  if (!hitNode) {
+    return null
+  }
+  const sheetNode = hitNode.closest ? hitNode.closest('.sheet-element') : null
+  if (!sheetNode) {
+    return null
+  }
+  const elementId = sheetNode.getAttribute('data-element-id')
+  return getElementById(elementId)
+}
+
+function cleanupConnectorReferences(removedIdsSet) {
+  if (!removedIdsSet || removedIdsSet.size === 0) {
+    return
+  }
+  elements.value.forEach((element) => {
+    if (!isLineConnector(element) || !element.connections) {
+      return
+    }
+    if (element.connections.start?.id && removedIdsSet.has(element.connections.start.id)) {
+      element.connections.start = null
+    }
+    if (element.connections.end?.id && removedIdsSet.has(element.connections.end.id)) {
+      element.connections.end = null
+    }
+    if (!element.connections.start?.id && !element.connections.end?.id) {
+      element.connections = null
+    }
+  })
 }
 
 function handleSurfacePointerDown(event) {
@@ -796,9 +1392,29 @@ function handleSurfacePointerDown(event) {
     const clickedSurface =
       event.target === event.currentTarget || event.target === sheetCanvas.value
     if (clickedSurface) {
+      if (connectorBinding.active) {
+        event.preventDefault()
+        cancelConnectionBinding()
+        return
+      }
       clearSelection()
     }
   }
+}
+
+function handleSurfacePointerMove(event) {
+  if (activeDrawTool.value !== 'eraser') {
+    hideEraserPreview()
+    return
+  }
+  const point = getSheetCoordinatesFromClient(event.clientX, event.clientY)
+  if (point) {
+    showEraserPreview(point)
+  }
+}
+
+function handleSurfacePointerLeave() {
+  hideEraserPreview()
 }
 
 function startMarqueeSelection(event) {
@@ -900,6 +1516,7 @@ function openContextMenu(event, element) {
   if (inlineEditor.id) {
     commitInlineEditing()
   }
+  cancelConnectionBinding()
   cancelMarqueeSelection()
   if (element && !isElementSelected(element)) {
     selectElement(element, event)
@@ -980,6 +1597,8 @@ function deleteSelectedElements() {
     cancelInlineEditing()
   }
   elements.value = elements.value.filter((element) => !ids.has(element.id))
+  cleanupConnectorReferences(ids)
+  saveState()
   clearSelection()
 }
 
@@ -991,6 +1610,7 @@ function bringSelectedToFront() {
   const selected = elements.value.filter((element) => ids.has(element.id))
   const remaining = elements.value.filter((element) => !ids.has(element.id))
   elements.value = [...remaining, ...selected]
+  saveState()
 }
 
 function sendSelectedToBack() {
@@ -1001,9 +1621,13 @@ function sendSelectedToBack() {
   const selected = elements.value.filter((element) => ids.has(element.id))
   const remaining = elements.value.filter((element) => !ids.has(element.id))
   elements.value = [...selected, ...remaining]
+  saveState()
 }
 
 function handleGlobalPointerDown(event) {
+  if (connectorBinding.active) {
+    cancelConnectionBinding()
+  }
   if (!contextMenu.visible) {
     return
   }
@@ -1072,6 +1696,7 @@ function applyColorToSelection(color) {
     element.color = color
   })
   colorPickerValue.value = color
+  saveState()
 }
 
 function handlePresetColor(color) {
@@ -1104,6 +1729,7 @@ function pasteClipboardElements(point = null) {
   )
   pasted.forEach((element) => elements.value.push(element))
   selectedElementIds.value = new Set(pasted.map((element) => element.id))
+  saveState()
 }
 
 function duplicateSelectedElements() {
@@ -1114,6 +1740,23 @@ function duplicateSelectedElements() {
   const duplicates = selected.map((element) => cloneElement(element, { x: 24, y: 24 }))
   duplicates.forEach((element) => elements.value.push(element))
   selectedElementIds.value = new Set(duplicates.map((element) => element.id))
+  saveState()
+}
+
+function cloneSelectionForDrag() {
+  const selected = getSelectedElements()
+  if (!selected.length) {
+    return []
+  }
+  const clones = selected.map((element) => ({
+    originalId: element.id,
+    clone: cloneElement(element, { x: 0, y: 0 }),
+  }))
+  clones.forEach(({ clone }) => {
+    elements.value.push(clone)
+  })
+  selectedElementIds.value = new Set(clones.map(({ clone }) => clone.id))
+  return clones
 }
 
 function cloneElement(element, offset = { x: 0, y: 0 }) {
@@ -1147,6 +1790,7 @@ function pasteClipboardElementsAtPoint(point) {
     elements.value.push(element)
   })
   selectedElementIds.value = new Set(pasted.map((element) => element.id))
+  saveState()
 }
 
 function getElementsBounds(list) {
@@ -1188,12 +1832,16 @@ function alignSelection(mode) {
   const anchor = selected[0]
   const anchorWidth = anchor.width || 0
   const anchorHeight = anchor.height || 0
+  let changed = false
   selected.forEach((element) => {
     const elementWidth = element.width || 0
     const elementHeight = element.height || 0
     switch (mode) {
       case 'left':
-        element.x = anchor.x
+        if (element.x !== anchor.x) {
+          element.x = anchor.x
+          changed = true
+        }
         break
       case 'center':
         element.x = clamp(
@@ -1201,12 +1849,17 @@ function alignSelection(mode) {
           0,
           SHEET_WIDTH - elementWidth,
         )
+        changed = true
         break
       case 'right':
         element.x = clamp(anchor.x + anchorWidth - elementWidth, 0, SHEET_WIDTH - elementWidth)
+        changed = true
         break
       case 'top':
-        element.y = anchor.y
+        if (element.y !== anchor.y) {
+          element.y = anchor.y
+          changed = true
+        }
         break
       case 'middle':
         element.y = clamp(
@@ -1214,17 +1867,54 @@ function alignSelection(mode) {
           0,
           SHEET_HEIGHT - elementHeight,
         )
+        changed = true
         break
       case 'bottom':
         element.y = clamp(anchor.y + anchorHeight - elementHeight, 0, SHEET_HEIGHT - elementHeight)
+        changed = true
         break
       default:
         break
     }
   })
+  if (changed) {
+    saveState()
+  }
+}
+
+function nudgeSelection(deltaX, deltaY) {
+  if (!deltaX && !deltaY) {
+    return
+  }
+  const selected = getSelectedElements()
+  if (!selected.length) {
+    return
+  }
+  let changed = false
+  selected.forEach((element) => {
+    const width = element.width || 0
+    const height = element.height || 0
+    const nextX = clamp((element.x || 0) + deltaX, 0, SHEET_WIDTH - width)
+    const nextY = clamp((element.y || 0) + deltaY, 0, SHEET_HEIGHT - height)
+    if (nextX !== element.x) {
+      element.x = nextX
+      changed = true
+    }
+    if (nextY !== element.y) {
+      element.y = nextY
+      changed = true
+    }
+  })
+  if (changed) {
+    saveState()
+  }
 }
 
 function getElementStyle(element) {
+  const connectedStyle = getConnectedLineStyle(element)
+  if (connectedStyle) {
+    return connectedStyle
+  }
   const style = {
     left: `${(element.x / SHEET_WIDTH) * 100}%`,
     top: `${(element.y / SHEET_HEIGHT) * 100}%`,
@@ -1236,6 +1926,21 @@ function getElementStyle(element) {
     style.height = `${(element.height / SHEET_HEIGHT) * 100}%`
   }
   return style
+}
+
+function getConnectedLineStyle(element) {
+  const previewPoints = getPreviewPointsForLine(element)
+  if (previewPoints) {
+    return buildLineStyleFromPoints(previewPoints.start, previewPoints.end, element.height)
+  }
+  if (!hasAnyLineConnection(element)) {
+    return null
+  }
+  const points = getLineConnectionPoints(element)
+  if (!points) {
+    return null
+  }
+  return buildLineStyleFromPoints(points.start, points.end, element.height)
 }
 
 function shapeStyle(element) {
@@ -1280,7 +1985,10 @@ function commitInlineEditing() {
   }
   const element = elements.value.find((el) => el.id === inlineEditor.id)
   if (element) {
-    element.text = inlineEditor.text
+    if (element.text !== inlineEditor.text) {
+      element.text = inlineEditor.text
+      saveState()
+    }
   }
   inlineEditor.id = null
   inlineEditor.text = ''
@@ -1316,6 +2024,30 @@ function setInlineEditorRef(el) {
   inlineEditorRef.value = el
 }
 
+function resetCloneDragState() {
+  cloneDragState.intent = false
+  cloneDragState.performed = false
+  cloneDragState.sourceElementId = null
+}
+
+function prepareCloneDrag(elementId, intent) {
+  cloneDragState.intent = intent
+  cloneDragState.performed = false
+  cloneDragState.sourceElementId = intent ? elementId : null
+}
+
+function activateCloneDragForSelection() {
+  const clones = cloneSelectionForDrag()
+  if (!clones.length) {
+    resetCloneDragState()
+    return null
+  }
+  cloneDragState.performed = true
+  const sourceId = cloneDragState.sourceElementId
+  const match = sourceId ? clones.find((entry) => entry.originalId === sourceId) : null
+  return (match && match.clone.id) || clones[0].clone.id
+}
+
 function startElementDrag(event, element) {
   event.stopPropagation()
   if (event.button && event.button !== 0) {
@@ -1324,27 +2056,43 @@ function startElementDrag(event, element) {
   if (event.detail === 2 || isInlineEditing(element)) {
     return
   }
+  if (connectorBinding.active) {
+    event.preventDefault()
+    return
+  }
   if (inlineEditor.id) {
     commitInlineEditing()
   }
   closeContextMenu()
+  resetCloneDragState()
   const additive = event && (event.shiftKey || event.ctrlKey || event.metaKey)
   if (!isElementSelected(element) && !additive) {
     selectElement(element)
   }
-  if (multiSelectMode.value) {
+  const shouldCloneOnDrag = Boolean(event && (event.ctrlKey || event.metaKey))
+  dragOperationHadEffect = false
+  if (multiSelectMode.value && !shouldCloneOnDrag) {
+    return
+  }
+  prepareCloneDrag(element.id, shouldCloneOnDrag)
+  let activeElement = element
+  if (isLineConnector(activeElement) && hasCompleteLineConnection(activeElement)) {
+    event.preventDefault()
+    resetCloneDragState()
     return
   }
   event.preventDefault()
-  draggingElementId.value = element.id
+  draggingElementId.value = activeElement.id
   dragStartPoint.value = getPoint(event)
-  dragSelectionStart.value = getSelectedElements().map((selectedElement) => ({
+  dragSelectionState.value.snapshots = getSelectedElements().map((selectedElement) => ({
     id: selectedElement.id,
     x: selectedElement.x,
     y: selectedElement.y,
     width: selectedElement.width || 40,
     height: selectedElement.height || 40,
   }))
+  dragSelectionState.value.shiftLock = event.shiftKey
+  dragSelectionState.value.axis = null
   window.addEventListener('pointermove', handleElementDrag)
   window.addEventListener('pointerup', stopElementDrag)
 }
@@ -1353,16 +2101,51 @@ function handleElementDrag(event) {
   if (!draggingElementId.value) {
     return
   }
+  const state = dragSelectionState.value
   const point = getPoint(event)
   const deltaX = point.x - dragStartPoint.value.x
   const deltaY = point.y - dragStartPoint.value.y
-  dragSelectionStart.value.forEach((snapshot) => {
+  const movedEnough = Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5
+  let effectiveDeltaX = deltaX
+  let effectiveDeltaY = deltaY
+  if (state.shiftLock && movedEnough) {
+    if (!state.axis) {
+      state.axis = Math.abs(deltaX) >= Math.abs(deltaY) ? 'x' : 'y'
+    }
+    if (state.axis === 'x') {
+      effectiveDeltaY = 0
+    } else {
+      effectiveDeltaX = 0
+    }
+  }
+  if (cloneDragState.intent && !cloneDragState.performed) {
+    if (!movedEnough) {
+      return
+    }
+    const newActiveId = activateCloneDragForSelection()
+    if (!newActiveId) {
+      return
+    }
+    draggingElementId.value = newActiveId
+    state.snapshots = getSelectedElements().map((selectedElement) => ({
+      id: selectedElement.id,
+      x: selectedElement.x,
+      y: selectedElement.y,
+      width: selectedElement.width || 40,
+      height: selectedElement.height || 40,
+    }))
+    dragOperationHadEffect = true
+  }
+  if (movedEnough) {
+    dragOperationHadEffect = true
+  }
+  state.snapshots.forEach((snapshot) => {
     const element = elements.value.find((el) => el.id === snapshot.id)
     if (!element) {
       return
     }
-    element.x = clamp(snapshot.x + deltaX, 0, SHEET_WIDTH - snapshot.width)
-    element.y = clamp(snapshot.y + deltaY, 0, SHEET_HEIGHT - snapshot.height)
+    element.x = clamp(snapshot.x + effectiveDeltaX, 0, SHEET_WIDTH - snapshot.width)
+    element.y = clamp(snapshot.y + effectiveDeltaY, 0, SHEET_HEIGHT - snapshot.height)
   })
 }
 
@@ -1371,9 +2154,16 @@ function stopElementDrag() {
     return
   }
   draggingElementId.value = null
-  dragSelectionStart.value = []
+  dragSelectionState.value.snapshots = []
+  dragSelectionState.value.shiftLock = false
+  dragSelectionState.value.axis = null
   window.removeEventListener('pointermove', handleElementDrag)
   window.removeEventListener('pointerup', stopElementDrag)
+  if (dragOperationHadEffect) {
+    saveState()
+  }
+  dragOperationHadEffect = false
+  resetCloneDragState()
 }
 
 function initCanvas() {
@@ -1387,7 +2177,7 @@ function initCanvas() {
   ctx.value.lineCap = 'round'
   ctx.value.lineJoin = 'round'
   updateBrush()
-  saveState()
+  saveState({ captureCanvas: true })
 }
 
 function updateBrush() {
@@ -1434,6 +2224,19 @@ function getSheetCoordinatesFromClient(clientX, clientY) {
   }
 }
 
+function showEraserPreview(point) {
+  if (!point) {
+    return
+  }
+  eraserPreview.visible = true
+  eraserPreview.x = point.x
+  eraserPreview.y = point.y
+}
+
+function hideEraserPreview() {
+  eraserPreview.visible = false
+}
+
 function startDrawing(event) {
   if (!ctx.value) {
     return
@@ -1453,6 +2256,9 @@ function startDrawing(event) {
   ctx.value.beginPath()
   const { x, y } = getPoint(event)
   ctx.value.moveTo(x, y)
+  if (activeDrawTool.value === 'eraser') {
+    showEraserPreview({ x, y })
+  }
 }
 
 function draw(event) {
@@ -1466,6 +2272,9 @@ function draw(event) {
   const { x, y } = getPoint(event)
   ctx.value.lineTo(x, y)
   ctx.value.stroke()
+  if (activeDrawTool.value === 'eraser') {
+    showEraserPreview({ x, y })
+  }
 }
 
 function stopDrawing() {
@@ -1474,7 +2283,8 @@ function stopDrawing() {
   }
   isDrawing.value = false
   ctx.value.closePath()
-  saveState()
+  saveState({ captureCanvas: true })
+  hideEraserPreview()
 }
 
 function cancelDrawing(event) {
@@ -1485,24 +2295,59 @@ function cancelDrawing(event) {
   stopDrawing()
 }
 
-function saveState() {
-  if (!ctx.value) {
+function cloneElementsState() {
+  return JSON.parse(JSON.stringify(elements.value))
+}
+
+function restoreState(entry) {
+  if (!entry) {
     return
   }
-  const snapshot = ctx.value.getImageData(0, 0, SHEET_WIDTH, SHEET_HEIGHT)
-  history.value.push(snapshot)
-  if (history.value.length > maxHistory) {
-    history.value.shift()
+  if (ctx.value && entry.canvas) {
+    ctx.value.putImageData(entry.canvas, 0, 0)
+    canvasSnapshot.value = entry.canvas
+  }
+  if (entry.elements) {
+    elements.value = JSON.parse(JSON.stringify(entry.elements))
   }
 }
 
+function saveState(options = {}) {
+  const { captureCanvas = false } = options
+  let canvasData = canvasSnapshot.value
+  if (ctx.value && (captureCanvas || !canvasData)) {
+    canvasData = ctx.value.getImageData(0, 0, SHEET_WIDTH, SHEET_HEIGHT)
+    canvasSnapshot.value = canvasData
+  }
+  const snapshot = {
+    canvas: canvasData,
+    elements: cloneElementsState(),
+  }
+  if (historyIndex.value < history.value.length - 1) {
+    history.value = history.value.slice(0, historyIndex.value + 1)
+  }
+  history.value.push(snapshot)
+  if (history.value.length > maxHistory) {
+    history.value.shift()
+    historyIndex.value = Math.max(historyIndex.value - 1, -1)
+  }
+  historyIndex.value = history.value.length - 1
+}
+
 function undo() {
-  if (!ctx.value || history.value.length <= 1) {
+  if (historyIndex.value <= 0) {
     return
   }
-  history.value.pop()
-  const lastState = history.value[history.value.length - 1]
-  ctx.value.putImageData(lastState, 0, 0)
+  historyIndex.value -= 1
+  restoreState(history.value[historyIndex.value])
+}
+
+function redo() {
+  if (historyIndex.value >= history.value.length - 1) {
+    return
+  }
+  historyIndex.value += 1
+  restoreState(history.value[historyIndex.value])
 }
 
 function clearCanvas() {
@@ -1511,7 +2356,8 @@ function clearCanvas() {
   }
   ctx.value.clearRect(0, 0, SHEET_WIDTH, SHEET_HEIGHT)
   history.value = []
-  saveState()
+  historyIndex.value = -1
+  saveState({ captureCanvas: true })
 }
 
 async function downloadSheet() {
@@ -1550,6 +2396,11 @@ function handleKeyboardShortcuts(event) {
     multiSelectMode.value = true
   }
   if (event.key === 'Escape') {
+    if (connectorBinding.active) {
+      event.preventDefault()
+      cancelConnectionBinding()
+      return
+    }
     if (contextMenu.visible) {
       event.preventDefault()
       closeContextMenu()
@@ -1564,8 +2415,32 @@ function handleKeyboardShortcuts(event) {
   if (inlineEditor.id) {
     return
   }
+  const isAccelKey = event.ctrlKey || event.metaKey
   const key = event.key.toLowerCase()
-  if (!event.ctrlKey && !event.metaKey && (key === 'delete' || key === 'backspace')) {
+  if (!isAccelKey && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+    if (selectedElementCount.value > 0) {
+      event.preventDefault()
+      const step = event.shiftKey ? 10 : 1
+      switch (key) {
+        case 'arrowup':
+          nudgeSelection(0, -step)
+          break
+        case 'arrowdown':
+          nudgeSelection(0, step)
+          break
+        case 'arrowleft':
+          nudgeSelection(-step, 0)
+          break
+        case 'arrowright':
+          nudgeSelection(step, 0)
+          break
+        default:
+          break
+      }
+    }
+    return
+  }
+  if (!isAccelKey && (key === 'delete' || key === 'backspace')) {
     if (selectedElementCount.value > 0) {
       event.preventDefault()
       deleteSelectedElements()
@@ -1573,43 +2448,52 @@ function handleKeyboardShortcuts(event) {
     }
     return
   }
-  if (event.ctrlKey && !event.shiftKey && key === 'c') {
+  if (isAccelKey && !event.shiftKey && key === 'c') {
     event.preventDefault()
     copySelectedElements()
     closeContextMenu()
     return
   }
-  if (event.ctrlKey && !event.shiftKey && key === 'v') {
+  if (isAccelKey && !event.shiftKey && key === 'v') {
     event.preventDefault()
     pasteClipboardElements()
     closeContextMenu()
     return
   }
-  if (event.ctrlKey && !event.shiftKey && key === 'd') {
+  if (isAccelKey && !event.shiftKey && key === 'd') {
     event.preventDefault()
     duplicateSelectedElements()
     closeContextMenu()
     return
   }
-  if (event.ctrlKey && !event.shiftKey && key === 'a') {
+  if (isAccelKey && !event.shiftKey && key === 'a') {
     event.preventDefault()
     selectAllElements()
     closeContextMenu()
     return
   }
-  if (event.ctrlKey && !event.shiftKey && key === 'z') {
+  if (isAccelKey && !event.shiftKey && key === 'z') {
     event.preventDefault()
     undo()
     closeContextMenu()
     return
   }
-  if (event.ctrlKey && key === 's') {
+  if (
+    (isAccelKey && !event.shiftKey && key === 'y') ||
+    (isAccelKey && event.shiftKey && key === 'z')
+  ) {
+    event.preventDefault()
+    redo()
+    closeContextMenu()
+    return
+  }
+  if (isAccelKey && key === 's') {
     event.preventDefault()
     downloadSheet()
     closeContextMenu()
     return
   }
-  if (event.ctrlKey && event.shiftKey && key === 'c') {
+  if (isAccelKey && event.shiftKey && key === 'c') {
     event.preventDefault()
     clearCanvas()
     closeContextMenu()
@@ -1678,9 +2562,16 @@ onBeforeUnmount(() => {
   window.removeEventListener('keyup', handleKeyup)
   window.removeEventListener('resize', updateSheetSize)
   window.removeEventListener('pointerdown', handleGlobalPointerDown)
+  window.removeEventListener('pointerup', finishConnectorHandleDrag)
+  window.removeEventListener('pointermove', handleConnectorHandleMove)
 })
 
 watch([brushColor, brushSize, activeDrawTool], updateBrush)
+watch(activeDrawTool, (tool) => {
+  if (tool !== 'eraser') {
+    hideEraserPreview()
+  }
+})
 </script>
 
 <style scoped>
@@ -1739,7 +2630,8 @@ watch([brushColor, brushSize, activeDrawTool], updateBrush)
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0 16px;
+  padding: 48px 16px 16px;
+  gap: 18px;
 }
 
 .selection-toolbar {
@@ -1753,6 +2645,14 @@ watch([brushColor, brushSize, activeDrawTool], updateBrush)
   align-items: center;
   gap: 12px;
   margin-bottom: 18px;
+}
+
+.selection-toolbar--fixed {
+  position: sticky;
+  top: 12px;
+  align-self: center;
+  margin-bottom: 0;
+  z-index: 60;
 }
 
 .selection-toolbar__title {
@@ -1806,6 +2706,41 @@ watch([brushColor, brushSize, activeDrawTool], updateBrush)
   pointer-events: none;
 }
 
+.eraser-preview {
+  position: absolute;
+  z-index: 6;
+  border: 2px dashed rgba(13, 31, 60, 0.6);
+  border-radius: 50%;
+  background: rgba(13, 31, 60, 0.08);
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(13, 31, 60, 0.25);
+}
+
+.connector-preview-line {
+  position: absolute;
+  z-index: 4;
+  border-radius: 999px;
+  background-image: linear-gradient(
+    90deg,
+    var(--connector-preview-color, #0d1f3c) 0 50%,
+    rgba(13, 31, 60, 0) 50% 100%
+  );
+  background-size: 18px 6px;
+  opacity: 0.9;
+  pointer-events: none;
+  animation: connector-preview-dash 0.45s linear infinite;
+  box-shadow: 0 6px 16px rgba(13, 31, 60, 0.25);
+}
+
+@keyframes connector-preview-dash {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 18px 0;
+  }
+}
+
 .context-menu {
   position: fixed;
   z-index: 50;
@@ -1830,6 +2765,21 @@ watch([brushColor, brushSize, activeDrawTool], updateBrush)
 .context-menu__section + .context-menu__section {
   padding-top: 8px;
   border-top: 1px solid rgba(13, 31, 60, 0.08);
+}
+
+.context-menu__section--connector {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.context-menu__connector-row {
+  width: 100%;
+  display: flex;
+  gap: 6px;
+}
+
+.context-menu__connector-row button {
+  flex: 1;
 }
 
 .context-menu__button,
@@ -2042,7 +2992,7 @@ watch([brushColor, brushSize, activeDrawTool], updateBrush)
 }
 
 .shape-render--rect-outline {
-  background: transparent;
+  background: #fff;
 }
 
 .shape-render--rect-split-left {
@@ -2194,6 +3144,35 @@ watch([brushColor, brushSize, activeDrawTool], updateBrush)
     var(--shape-color) 60% 100%
   );
   background-size: 18px 4px;
+}
+
+.connector-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--shape-color, #0d1f3c);
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(13, 31, 60, 0.25);
+  pointer-events: auto;
+  cursor: grab;
+  z-index: 2;
+}
+
+.connector-handle:active {
+  cursor: grabbing;
+}
+
+.connector-handle--start {
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+.connector-handle--end {
+  top: 50%;
+  left: 100%;
+  transform: translate(-50%, -50%);
 }
 
 .text-render {
