@@ -98,7 +98,6 @@ import { useQuasar } from 'quasar'
 const navItems = [
   { label: 'MENU', caption: 'Resumo geral', icon: 'dashboard', to: { name: 'menu' } },
   { label: 'OBRAS', caption: 'Envios por obra', icon: 'engineering', to: { name: 'obras' } },
-  { label: 'EME', caption: 'Distribuicao de equipes', icon: 'groups', to: { name: 'eme' } },
   {
     label: 'MESA DE PENDÊNCIAS',
     caption: 'Pendências em aberto',

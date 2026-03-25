@@ -288,7 +288,8 @@ import { useQuasar } from 'quasar'
 import * as XLSX from 'xlsx'
 import { fetchDropboxExcel } from 'src/services/dropboxExcel'
 
-const dropboxExcelUrl = import.meta.env.VITE_DROPBOX_OBRAS_URL || ''
+const dropboxExcelPath =
+  '/Programação Semanal Equipes/Programação Semanal 2026/PROGRAMAÇÃO SEMANAL BCB.xlsm'
 const dropboxSheetName = import.meta.env.VITE_DROPBOX_OBRAS_SHEET || ''
 const $q = useQuasar()
 
@@ -336,7 +337,7 @@ const viewModeOptions = [
   { label: 'TRATADAS', value: 'TRATADAS' },
 ]
 
-const dropboxConfigured = computed(() => Boolean(dropboxExcelUrl))
+const dropboxConfigured = computed(() => Boolean(dropboxExcelPath))
 
 const summaryCards = computed(() => {
   const total = obras.value.length
@@ -433,7 +434,7 @@ async function loadExcel() {
 
   try {
     const { rows, sheetName } = await fetchDropboxExcel({
-      url: dropboxExcelUrl,
+      path: dropboxExcelPath,
       sheetName: dropboxSheetName,
     })
 

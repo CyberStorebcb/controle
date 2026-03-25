@@ -1,40 +1,13 @@
 import * as XLSX from 'xlsx'
 
-function ensureDirectDownloadLink(url) {
-  if (!url) {
-    return ''
+export async function fetchDropboxExcel({ path, sheetName }) {
+  if (!path) {
+    throw new Error('Caminho do arquivo do Dropbox não configurado.')
   }
 
-  try {
-    const parsed = new URL(url)
-
-    if (parsed.hostname.includes('dropbox.com')) {
-      parsed.hostname = 'dl.dropboxusercontent.com'
-
-      if (parsed.searchParams.has('dl')) {
-        parsed.searchParams.delete('dl')
-      }
-
-      if (!parsed.searchParams.has('raw')) {
-        parsed.searchParams.append('raw', '1')
-      }
-    }
-
-    return parsed.toString()
-  } catch (error) {
-    console.warn('Invalid Dropbox URL, using original string', error)
-    return url
-  }
-}
-
-export async function fetchDropboxExcel({ url, sheetName }) {
-  const directUrl = ensureDirectDownloadLink(url)
-
-  if (!directUrl) {
-    throw new Error('Dropbox Excel URL not configured.')
-  }
-
-  const response = await fetch(directUrl)
+  // Backend proxy endpoint
+  const proxyUrl = `http://localhost:3334/dropbox/download?path=${encodeURIComponent(path)}`
+  const response = await fetch(proxyUrl)
 
   if (!response.ok) {
     throw new Error('Falha ao baixar o arquivo do Dropbox.')
@@ -43,9 +16,8 @@ export async function fetchDropboxExcel({ url, sheetName }) {
   const arrayBuffer = await response.arrayBuffer()
   const workbook = XLSX.read(arrayBuffer, { type: 'array' })
 
-  const targetSheetName = sheetName && workbook.SheetNames.includes(sheetName)
-    ? sheetName
-    : workbook.SheetNames[0]
+  const targetSheetName =
+    sheetName && workbook.SheetNames.includes(sheetName) ? sheetName : workbook.SheetNames[0]
 
   if (!targetSheetName) {
     throw new Error('Nenhuma aba encontrada no Excel.')

@@ -64,7 +64,6 @@ const router = useRouter()
 const navLinks = [
   { label: 'MENU', icon: 'dashboard', to: { name: 'menu' } },
   { label: 'OBRAS', icon: 'engineering', to: { name: 'obras' } },
-  { label: 'EME', icon: 'groups', to: { name: 'eme' } },
 ]
 
 // Custom positions for each button (top, bottom-left, bottom-right) OUTSIDE the orbit-wrapper
@@ -73,7 +72,6 @@ const customOrbitStyle = (index) => {
   const positions = [
     { x: 0, y: -260 }, // Top (MENU)
     { x: -220, y: 170 }, // Bottom-left (OBRAS)
-    { x: 220, y: 170 }, // Bottom-right (EME)
   ]
   const pos = positions[index] || { x: 0, y: 0 }
   return {

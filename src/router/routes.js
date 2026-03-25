@@ -14,11 +14,6 @@ const routes = [
         component: () => import('pages/ObrasPage.vue'),
       },
       {
-        path: 'eme',
-        name: 'eme',
-        component: () => import('pages/EmePage.vue'),
-      },
-      {
         path: 'mesa-pendencias',
         name: 'mesa-pendencias',
         component: () => import('pages/MesaPendenciasPage.vue'),
